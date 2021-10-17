@@ -1,0 +1,106 @@
+#cloud-config
+autoinstall:
+  version: 1
+  identity:
+    hostname: xeon
+    password: overwritten
+    realname: ''
+    username: hector
+  keyboard:
+    layout: us
+    variant: ''
+  late-commands:
+  - 'echo "hector ALL=(ALL) NOPASSWD: ALL" > /target/etc/sudoers.d/hector'
+  - chmod 440 /target/etc/sudoers.d/hector
+  - apt-get -y install linux-headers-$(uname -r)
+  locale: en_US
+  packages:
+  - avahi-daemon
+  - avahi-autoipd
+  - build-essential
+  - ubuntu-desktop
+  ssh:
+    allow-pw: true
+    authorized-keys: []
+    install-server: true
+
+#----------------
+#cloud-config
+autoinstall:
+  package_upgrade: true
+  packages:
+    - zsh
+    - tmux
+    - nmap
+    - curl
+    - wget
+    - git
+    - htop
+    - iperf
+    - fail2ban
+    - vim
+    - net-tools
+  apt:
+    geoip: true
+    preserve_sources_list: false
+    primary:
+    - arches: [amd64, i386]
+      uri: http://de.archive.ubuntu.com/ubuntu
+    - arches: [default]
+      uri: http://ports.ubuntu.com/ubuntu-ports
+  identity: {hostname: localhost, password: <password>,
+    username: ansible, realname: ansible}
+  keyboard: {layout: de, toggle: null, variant: ''}
+  locale: en_GB
+  ssh:
+    allow-pw: true
+    install-server: true
+    authorized-keys:
+      - ssh-rsa ...
+      - ssh-rsa ...
+  user-data:
+    disable_root: true
+  storage:
+    config:
+    - {ptable: gpt, path: /dev/sda, wipe: superblock-recursive, preserve: false, name: '', grub_device: true, type: disk, id: disk-sda}
+    - {device: disk-sda, size: 1048576, flag: bios_grub, number: 1, preserve: false,
+      grub_device: false, type: partition, id: partition-sda1}
+    - {device: disk-sda, size: 2147483648, wipe: superblock, flag: linux, number: 2,
+      preserve: false, grub_device: false, type: partition, id: partition-sda2}
+    - {fstype: ext4, volume: partition-sda2, preserve: false, type: format, id: format-0}
+    - {device: disk-sda, size: -1, wipe: superblock, flag: linux, number: 3,
+      preserve: false, grub_device: false, type: partition, id: partition-sda3}
+    - name: vg0
+      devices: [partition-sda3]
+      preserve: false
+      type: lvm_volgroup
+      id: lvm_volgroup-0
+    - {name: root, volgroup: lvm_volgroup-0, size: 5368709120B, preserve: false, type: lvm_partition,
+      id: lvm_partition-0}
+    - {fstype: ext4, volume: lvm_partition-0, preserve: false, type: format, id: format-1}
+    - {device: format-1, path: /, type: mount, id: mount-1}
+    - {name: swap, volgroup: lvm_volgroup-0, size: 4294967296B, preserve: false, type: lvm_partition,
+      id: lvm_partition-1}
+    - {fstype: swap, volume: lvm_partition-1, preserve: false, type: format, id: format-2}
+    - {device: format-2, path: '', type: mount, id: mount-2}
+    - {name: tmp, volgroup: lvm_volgroup-0, size: 4294967296B, preserve: false, type: lvm_partition,
+      id: lvm_partition-2}
+    - {fstype: ext4, volume: lvm_partition-2, preserve: false, type: format, id: format-3}
+    - {device: format-3, path: /tmp, type: mount, id: mount-3}
+    - {name: usr, volgroup: lvm_volgroup-0, size: 16106127360B, preserve: false, type: lvm_partition,
+      id: lvm_partition-3}
+    - {fstype: ext4, volume: lvm_partition-3, preserve: false, type: format, id: format-4}
+    - {device: format-4, path: /usr, type: mount, id: mount-4}
+    - {name: var, volgroup: lvm_volgroup-0, size: 10737418240B, preserve: false, type: lvm_partition,
+      id: lvm_partition-4}
+    - {fstype: ext4, volume: lvm_partition-4, preserve: false, type: format, id: format-5}
+    - {device: format-5, path: /var, type: mount, id: mount-5}
+    - {name: varlog, volgroup: lvm_volgroup-0, size: 4294967296B, preserve: false,
+      type: lvm_partition, id: lvm_partition-5}
+    - {fstype: ext4, volume: lvm_partition-5, preserve: false, type: format, id: format-6}
+    - {device: format-6, path: /var/log, type: mount, id: mount-6}
+    - {device: format-0, path: /boot, type: mount, id: mount-0}
+    swap: {swap: 0}
+  version: 1
+  late-commands:
+    - echo 'ansible ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/ansible

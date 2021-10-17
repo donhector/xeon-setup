@@ -1,0 +1,35 @@
+version: '3.9'
+services:
+  dnsmasq:
+    image: andyshinn/dnsmasq
+    network_mode: host
+    restart: unless-stopped
+    container_name: dnsmasq
+    volumes:
+      - ./dnsmasq.conf:/etc/dnsmasq.conf
+    # ports:
+    #   - 67:67/udp # DHCP server
+    command:
+      - --log-facility=-
+    cap_add:
+      - NET_ADMIN
+
+  netbootxyz:
+    image: linuxserver/netbootxyz
+    network_mode: host
+    restart: unless-stopped
+    container_name: netbootxyz
+    environment:
+      - PUID=1000
+      - PGID=1000
+      #- MENU_VERSION=1.9.9 #optional
+      - PORT_RANGE=30000:30010 #optional
+    volumes:
+      - ./netbootxyz/config:/config
+      - ./netbootxyz/assets:/assets #optional
+    # ports:
+    #   - 3000:3000 # UI Manager
+    #   - 69:69/udp # TFTP server
+    #   - 80:80     # Web Server
+    #depends_on:
+    #   - dnsmasq

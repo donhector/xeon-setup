@@ -1,0 +1,10 @@
+!netboot/netbootxyz/
+netboot/netbootxyz/*
+!netboot/netbootxyz/assets/
+!netboot/netbootxyz/config/
+netboot/netbootxyz/assets/*
+!netboot/netbootxyz/assets/cloud-init/
+netboot/netbootxyz/config/*
+!netboot/netbootxyz/config/menus
+netboot/netbootxyz/config/menus/*
+!netboot/netbootxyz/config/menus/local
