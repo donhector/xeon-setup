@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 
-apt update
-apt install apt-transport-https
+sudo apt update
+sudo apt install apt-transport-https software-properties-common
 
-cp -f sources.list /etc/apt/sources.list
+sudo cp -f sources.list /etc/apt/sources.list
 
 # utils
-apt install htop tree dnsutils
+sudo apt update
+sudo apt install htop tree dnsutils curl wget unzip
 
 # update packages
-apt dist-upgrade
+sudo apt dist-upgrade
