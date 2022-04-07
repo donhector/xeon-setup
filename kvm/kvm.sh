@@ -24,11 +24,26 @@ sudo systemctl status libvirtd.service
 sudo apt install --no-install-recommends -y \
 	virt-top \
 	libguestfs-tools \
-	libosinfo-bin
+	libosinfo-bin \
+  genisoimage \
+  xorriso
+
+# genisoimage and xorriso allow us to create ISO files
+# this is useful for creating cloudinit ISO disks or packer images.
+# macvicar libvirt provider uses 'mkisofs' from genisoimage
+# For some reason debian10 does not symlink 'mkisofs to 'genisoimage'
+ln -s /usr/local/bin/mkisofs /usr/bin/genisoimage
 
 # Create and manage VMs without root privileges. Logout is required 
 sudo usermod -aG libvirt $USER
 sudo usermod -aG kvm $USER
+
+# By default qemu runs under the root user. This might cause issues
+# when using the macvicar libvirt terraform provider, so its better to
+# run qemu as our user, which we already added to libvirt & kvm groups
+sudo sed -i "s/#user = \"root\"/user = \"${USER}\"/g" /etc/libvirt/qemu.conf
+sudo sed -i "s/#group = \"root\"/group = \"libvirt\"/g" /etc/libvirt/qemu.conf
+sudo systemctl restart libvirtd
 
 ### Network setup
 # Check if the default network is active
