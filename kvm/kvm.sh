@@ -20,6 +20,10 @@ echo
 # Check if service is Running and Enabled
 sudo systemctl status libvirtd.service
 
+# If not:
+sudo systemctl enable libvirtd.service
+sudo systemctl start libvirtd.service
+
 # Optional: Install some additional management tools
 sudo apt install --no-install-recommends -y \
 	virt-top \
@@ -36,14 +40,44 @@ ln -s /usr/local/bin/mkisofs /usr/bin/genisoimage
 
 # Create and manage VMs without root privileges. Logout is required 
 sudo usermod -aG libvirt $USER
+sudo usermod -aG libvirt-qemu $USER
 sudo usermod -aG kvm $USER
 
-# By default qemu runs under the root user. This might cause issues
-# when using the macvicar libvirt terraform provider, so its better to
-# run qemu as our user, which we already added to libvirt & kvm groups
-sudo sed -i "s/#user = \"root\"/user = \"${USER}\"/g" /etc/libvirt/qemu.conf
-sudo sed -i "s/#group = \"root\"/group = \"libvirt\"/g" /etc/libvirt/qemu.conf
+# By default qemu runs under the root user, but it's better to
+# run it as our user (which we already added to libvirt & kvm groups)
+sudo sed -i "s/#user =.*/user = \"libvirt-qemu\"/g" /etc/libvirt/qemu.conf
+sudo sed -i "s/#group =.*/group = \"libvirt-qemu\"/g" /etc/libvirt/qemu.conf
+
+# Also to make libvirtd run as non root, we need to tweak its config:
+sudo sed -i "s/#unix_sock_group = .*/unix_sock_group = \"libvirt\"/g" /etc/libvirt/libvirtd.conf
+sudo sed -i "s/#unix_sock_ro_perms = .*/unix_sock_ro_perms = \"0777\"/g" /etc/libvirt/libvirtd.conf
+sudo sed -i "s/#unix_sock_rw_perms = .*/unix_sock_rw_perms = \"0770\"/g" /etc/libvirt/libvirtd.conf
+
+# Extrangely, despite running libvirt as non root, apparmour is still giving 
+# me headaches with 'permission denied' to virtual disks created with macvicar TF provider.
+# So while not recommended, I disable apparmour for libvirt:
+sudo sed -i "s/#security_driver =.*/security_driver = \"none\"/g" /etc/libvirt/qemu.conf
+
 sudo systemctl restart libvirtd
+
+# Since we should now be able to run "system" vms as our user, we 
+# can adjust the default connection URL to be 'system' and not 'session' by default
+# so virsh on command line will use the system qemu connection.
+echo 'uri_default = "qemu:///system"' > ${HOME}/.config/libvirt/libvirt.conf
+
+# An alternative is to 
+printf '\nexport LIBVIRT_DEFAULT_URI="qemu:///system"\n\n' | tee -a ${HOME}/.bashrc
+printf '\nexport VIRSH_DEFAULT_CONNECT_URI=$LIBVIRT_DEFAULT_URI\n\n' | tee -a ${HOME}/.bashrc
+
+# To check for nested virtualization capability (replace intel with amd depending on CPU)
+modinfo kvm_intel | grep -i nested
+
+# To enable nested virtualization
+sudo modprobe -r kvm_intel
+sudo modprobe kvm_intel nested=1
+
+# Persist the change
+echo "options kvm-intel nested=1" | sudo tee /etc/modprobe.d/kvm-intel.conf
 
 ### Network setup
 # Check if the default network is active
@@ -55,7 +89,7 @@ sudo virsh net-autostart default
 
 # Load vhost_net kernel module for an improved virtual network performance
 sudo modprobe vhost_net
-echo "vhost_net" | sudo  tee -a /etc/modules
+echo "vhost_net" | sudo  tee -a /etc/modules-load.d/vhost_net.conf
 
 # Check it is loaded
 lsmod | grep vhost
@@ -129,6 +163,7 @@ sudo cat <<EOF > /etc/network/interfaces.d/${BRIDGE}-static.conf
 # Primary network interface
 auto ${IFACE}
 iface ${IFACE} inet manual
+iface ${IFACE} inet6 manual
 
 # Bridge definition
 auto ${BRIDGE}
@@ -142,6 +177,9 @@ iface ${BRIDGE} inet static
   bridge_stp off       # disable Spanning Tree Protocol
   bridge_waitport 0    # no delay before a port becomes available
   bridge_fd 0          # no forwarding delay
+
+iface ${BRIDGE} inet6 auto
+  accept_ra 1
 EOF
 
 # If you wanted dynamic dchp for the bridge
@@ -195,3 +233,10 @@ sudo virsh net-start bridged
 
 # ensure it runs on startup
 sudo virsh net-autostart bridged
+
+
+## TODO configure storage pool
+# NOTE: apparmor will block libvirt from accessing pools in hidden directories
+# sp choose carefully the directory you will use for your pool
+# See /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
+# It is not recommended to edit that file not disable apparmor in /etc/libvirt/libvirtd.conf
