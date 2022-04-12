@@ -53,7 +53,7 @@ sudo sed -i "s/#unix_sock_group = .*/unix_sock_group = \"libvirt\"/g" /etc/libvi
 sudo sed -i "s/#unix_sock_ro_perms = .*/unix_sock_ro_perms = \"0777\"/g" /etc/libvirt/libvirtd.conf
 sudo sed -i "s/#unix_sock_rw_perms = .*/unix_sock_rw_perms = \"0770\"/g" /etc/libvirt/libvirtd.conf
 
-# Extrangely, despite running libvirt as non root, apparmour is still giving 
+# Extrangely, on Debian based systesm, despite running libvirt as non root, apparmour is still giving 
 # me headaches with 'permission denied' to virtual disks created with macvicar TF provider.
 # So while not recommended, I disable apparmour for libvirt:
 sudo sed -i "s/#security_driver =.*/security_driver = \"none\"/g" /etc/libvirt/qemu.conf
@@ -159,7 +159,7 @@ sudo ip address add dev br0 192.168.1.100/24
 ip addr show br0
 
 # Method 2: Bridge definition file for the OS (Debian derivatives)
-sudo cat <<EOF > /etc/network/interfaces.d/${BRIDGE}-static.conf
+cat <<EOF | sudo tee /etc/network/interfaces.d/${BRIDGE}-static.conf
 # Primary network interface
 auto ${IFACE}
 iface ${IFACE} inet manual
@@ -183,7 +183,7 @@ iface ${BRIDGE} inet6 auto
 EOF
 
 # If you wanted dynamic dchp for the bridge
-sudo cat <<EOF > /etc/network/interfaces.d/${BRIDGE}-dhcp.conf
+cat <<EOF | sudo tee /etc/network/interfaces.d/${BRIDGE}-dhcp.conf
 # Primary network interface
 auto ${IFACE}
 iface ${IFACE} inet manual
@@ -199,8 +199,9 @@ EOF
 
 
 ## Disable netfilter for the bridge
-# To do this we can create a file with the .conf extension inside the /etc/sysctl.d directory, let’s call it 99-netfilter-bridge.conf. Inside of it we write the following content:
-sudo cat <<EOF > /etc/sysctl.d/99-netfilter-bridge.conf
+# To do this we can create a file with the .conf extension inside the /etc/sysctl.d directory
+# let’s call it 99-netfilter-bridge.conf. Inside of it we write the following content:
+cat <<EOF | sudo tee /etc/sysctl.d/99-netfilter-bridge.conf
 net.bridge.bridge-nf-call-ip6tables = 0
 net.bridge.bridge-nf-call-iptables = 0
 net.bridge.bridge-nf-call-arptables = 0
@@ -214,6 +215,18 @@ echo 'br_netfilter' | sudo tee /etc/modules-load.d/br_netfilter.conf
 
 # Apply the netfilter config we just created
 sudo sysctl -p /etc/sysctl.d/99-netfilter-bridge.conf
+
+
+# For IPv6 libvirt networks, the following needs to be set in the host
+# adjust the name of the bridge and interface
+cat <<EOF | sudo tee /etc/sysctl.d/99-ipv6-routing.conf
+net.ipv6.conf.br0.accept_ra = 2
+net.ipv6.conf.eth0.accept_ra = 2
+net.ipv6.conf.wlan0.accept_ra = 2
+EOF
+
+sudo sysctl -p /etc/sysctl.d/99-ipv6-routing.conf
+
 
 ### Create a new virtual network that uses our new bridge
 
@@ -237,6 +250,8 @@ sudo virsh net-autostart bridged
 
 ## TODO configure storage pool
 # NOTE: apparmor will block libvirt from accessing pools in hidden directories
-# sp choose carefully the directory you will use for your pool
+# so choose carefully the directory you will use for your pool
 # See /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
-# It is not recommended to edit that file not disable apparmor in /etc/libvirt/libvirtd.conf
+# It is not recommended to edit that file nor disable apparmor in /etc/libvirt/libvirtd.conf
+# However on debian based systems there seems to be still issues with apparmour
+# and waht works is setting ``
